@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mood & Medication Tracker</title>
+    <title>Mood Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <style>
         body {
@@ -53,13 +53,6 @@
             border-radius: 4px;
             font-size: 16px;
         }
-        .recent-entries {
-            margin-top: 20px;
-        }
-        .entry {
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
         canvas {
             margin: 20px 0;
             max-height: 300px;
@@ -80,13 +73,8 @@
 </head>
 <body>
     <div class="card">
-        <h1>Mood & Medication Tracker</h1>
+        <h1>Mood Tracker</h1>
         
-        <div class="section">
-            <label for="medTime"><strong>Medication Time:</strong></label>
-            <input type="time" id="medTime" class="time-input">
-        </div>
-
         <div class="section">
             <h3>How are you feeling right now?</h3>
             <div class="button-group">
@@ -110,84 +98,77 @@
     </div>
 
     <script>
-        // Initialize variables
+        // Google Apps Script Web App URL (replace with your own URL)
+        const googleAppsScriptUrl = 'https://script.google.com/macros/s/your-script-id/exec';
+
         let chart;
         let entries = [];
-        const medTimeInput = document.getElementById('medTime');
-        
-        // Load saved data when page loads
-        window.addEventListener('load', function() {
-            try {
-                const savedEntries = localStorage.getItem('moodEntries');
-                if (savedEntries) {
-                    entries = JSON.parse(savedEntries);
-                }
-                
-                const savedMedTime = localStorage.getItem('medTime');
-                if (savedMedTime) {
-                    medTimeInput.value = savedMedTime;
-                }
-                
-                updateDisplay();
-            } catch (e) {
-                console.error('Error loading saved data:', e);
-            }
-        });
 
-        // Save medication time when changed
-        medTimeInput.addEventListener('change', (e) => {
-            try {
-                localStorage.setItem('medTime', e.target.value);
-            } catch (e) {
-                console.error('Error saving medication time:', e);
-            }
-        });
-
+        // Add entry (mood level and timestamp)
         function addEntry(level) {
-            try {
-                const now = new Date();
-                const entry = {
-                    timestamp: now.getTime(),
-                    timeString: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                    level,
-                    date: now.toLocaleDateString()
-                };
-                entries.push(entry);
-                localStorage.setItem('moodEntries', JSON.stringify(entries));
-                updateDisplay();
-            } catch (e) {
-                console.error('Error adding entry:', e);
-                alert('Unable to save entry. Make sure you\'re not in private browsing mode.');
-            }
+            const now = new Date();
+            const entry = {
+                timestamp: now.getTime(),
+                timeString: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                level,
+                date: now.toLocaleDateString()
+            };
+            entries.push(entry);
+            updateDisplay();
+
+            // Send data to Google Sheets using Apps Script Web App
+            sendToGoogleSheets(entry);
         }
 
+        // Send data to Google Sheets (Google Apps Script)
+        function sendToGoogleSheets(entry) {
+            const queryParams = new URLSearchParams({
+                'timestamp': entry.timestamp,
+                'time': entry.timeString,
+                'level': entry.level,
+                'date': entry.date
+            });
+
+            fetch(`${googleAppsScriptUrl}?${queryParams.toString()}`, {
+                method: 'GET',
+            })
+            .then(response => response.text())
+            .then(data => console.log('Data saved:', data))
+            .catch(error => console.error('Error saving data:', error));
+        }
+
+        // Clear all data
         function clearData() {
             if (confirm('Are you sure you want to clear all data?')) {
-                try {
-                    entries = [];
-                    localStorage.removeItem('moodEntries');
-                    localStorage.removeItem('medTime');
-                    medTimeInput.value = '';
-                    updateDisplay();
-                } catch (e) {
-                    console.error('Error clearing data:', e);
-                }
+                entries = [];
+                updateDisplay();
             }
         }
 
+        // Update the display (entries and chart)
         function updateDisplay() {
-            updateChart();
             updateEntries();
+            updateChart();
         }
 
+        // Update entries list
+        function updateEntries() {
+            const list = document.getElementById('entriesList');
+            list.innerHTML = entries.slice(-5).reverse().map(entry => 
+                `<div class="entry">${entry.date} ${entry.timeString} - Level ${entry.level} 
+                 (${['', 'Calm', 'Mild Irritation', 'Strong Irritation', 'Intense Anger'][entry.level]})</div>`
+            ).join('');
+        }
+
+        // Update mood chart
         function updateChart() {
             const ctx = document.getElementById('moodChart').getContext('2d');
-            
+
             if (chart) {
                 chart.destroy();
             }
 
-            const chartData = entries.slice(-20); // Show last 20 entries for better visibility
+            const chartData = entries.slice(-20);
 
             chart = new Chart(ctx, {
                 type: 'line',
@@ -231,14 +212,6 @@
                     }
                 }
             });
-        }
-
-        function updateEntries() {
-            const list = document.getElementById('entriesList');
-            list.innerHTML = entries.slice(-5).reverse().map(entry => 
-                `<div class="entry">${entry.date} ${entry.timeString} - Level ${entry.level} 
-                 (${['', 'Calm', 'Mild Irritation', 'Strong Irritation', 'Intense Anger'][entry.level]})</div>`
-            ).join('');
         }
     </script>
 </body>
